@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { EventCard } from "@/components/EventCard";
 import { EventEditModal } from "@/components/EventEditModal";
-import { ExtractionWarnings } from "@/components/ExtractionWarnings";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { detectExtractionGaps } from "@/lib/detectExtractionGaps";
@@ -13,9 +12,7 @@ import { sortEventsByDate } from "@/lib/eventUtils";
 import {
   addConfirmedEvents,
   clearPendingEvents,
-  getExtractionWarnings,
   getPendingEvents,
-  saveExtractionWarnings,
   savePendingEvents,
 } from "@/lib/storage";
 import type { EventItem } from "@/lib/types";
@@ -23,9 +20,6 @@ import type { EventItem } from "@/lib/types";
 export default function PreviewPage() {
   const router = useRouter();
   const [events, setEvents] = useState<EventItem[]>([]);
-  const [warnings, setWarnings] = useState(
-    () => [] as ReturnType<typeof getExtractionWarnings>
-  );
   const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -37,17 +31,22 @@ export default function PreviewPage() {
     }
     const sorted = sortEventsByDate(pending);
     setEvents(sorted);
-    const stored = getExtractionWarnings();
-    setWarnings(stored.length > 0 ? stored : detectExtractionGaps(sorted));
+
+    const gaps = detectExtractionGaps(sorted);
+    if (gaps.length > 0) {
+      console.warn("[latest IF] 抽出漏れの可能性:", gaps);
+    }
   }, [router]);
 
   function persistEvents(updated: EventItem[]) {
     const sorted = sortEventsByDate(updated);
     setEvents(sorted);
     savePendingEvents(sorted);
-    const newWarnings = detectExtractionGaps(sorted);
-    setWarnings(newWarnings);
-    saveExtractionWarnings(newWarnings);
+
+    const gaps = detectExtractionGaps(sorted);
+    if (gaps.length > 0) {
+      console.warn("[latest IF] 抽出漏れの可能性:", gaps);
+    }
   }
 
   function handleDelete(id: string) {
@@ -102,17 +101,14 @@ export default function PreviewPage() {
     <AppShell>
       <PageHeader
         title="読み取り結果"
-        subtitle={`${events.length}件の予定候補 · 不要なものは削除、内容は編集できます`}
+        subtitle={`${events.length}件 · 内容を確認して追加`}
       />
-
-      <ExtractionWarnings warnings={warnings} />
 
       <div className="mb-6 space-y-3">
         {events.map((event) => (
           <EventCard
             key={event.id}
             event={event}
-            showDetail
             onEdit={() => setEditingEvent(event)}
             onDelete={() => handleDelete(event.id)}
           />

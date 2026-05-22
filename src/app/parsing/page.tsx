@@ -4,10 +4,8 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { extractEventsFromPdf } from "@/lib/extractEventsFromPdf";
-import {
-  saveExtractionWarnings,
-  savePendingEvents,
-} from "@/lib/storage";
+import { savePendingEvents } from "@/lib/storage";
+import { detectExtractionGaps } from "@/lib/detectExtractionGaps";
 
 export default function ParsingPage() {
   const router = useRouter();
@@ -25,7 +23,9 @@ export default function ParsingPage() {
         const result = await extractEventsFromPdf(dummyFile);
         if (cancelled) return;
         savePendingEvents(result.events);
-        saveExtractionWarnings(result.warnings);
+        if (result.warnings.length > 0) {
+          console.warn("[latest IF] 抽出漏れの可能性:", result.warnings);
+        }
         router.replace("/preview");
       } catch {
         if (!cancelled) {

@@ -97,15 +97,6 @@ export function EventEditModal({
             </select>
           </label>
 
-          <label className="block">
-            <span className="text-xs text-muted">読み取り原文（rawText）</span>
-            <textarea
-              value={form.rawText ?? ""}
-              onChange={(e) => update("rawText", e.target.value)}
-              rows={2}
-              className="mt-1 w-full rounded-xl bg-background px-3 py-2 text-sm text-foreground"
-            />
-          </label>
         </div>
 
         <div className="mt-5 space-y-2">
