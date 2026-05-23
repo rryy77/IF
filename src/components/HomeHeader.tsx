@@ -1,4 +1,5 @@
 import { AddActionMenu } from "@/components/AddActionMenu";
+import { NotificationBell } from "@/components/NotificationBell";
 
 type HomeHeaderProps = {
   onEditClick?: () => void;
@@ -7,11 +8,16 @@ type HomeHeaderProps = {
 
 export function HomeHeader({ onEditClick, isEditActive }: HomeHeaderProps) {
   return (
-    <header className="sticky top-0 z-10 -mx-4 mb-4 flex items-center justify-between bg-background/95 px-4 py-3 backdrop-blur">
-      <h1 className="text-xl font-bold tracking-tight text-foreground">
+    <header className="sticky top-0 z-10 -mx-4 mb-4 grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-background/95 px-4 py-3 backdrop-blur">
+      <div className="justify-self-start">
+        <NotificationBell />
+      </div>
+
+      <h1 className="justify-self-center text-xl font-bold tracking-tight text-foreground">
         latest IF
       </h1>
-      <div className="flex items-center gap-2">
+
+      <div className="flex items-center justify-end gap-2">
         {onEditClick && (
           <button
             type="button"

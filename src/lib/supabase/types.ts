@@ -31,3 +31,24 @@ export type PushSubscriptionPayload = {
     auth: string;
   };
 };
+
+export type NoticeRow = {
+  id: string;
+  title: string;
+  summary: string | null;
+  body: string | null;
+  category: string;
+  importance: string;
+  source: string;
+  pdf_url: string | null;
+  should_notify: boolean;
+  should_create_event: boolean;
+  is_read: boolean;
+  created_at: string;
+};
+
+export type ProcessedMailIdRow = {
+  id: string;
+  mail_id: string;
+  processed_at: string;
+};
