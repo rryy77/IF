@@ -92,7 +92,7 @@ export function GmailSettingsPanel() {
 
   async function handleCheckNow() {
     if (!status?.connected) {
-      alert("先に「Gmail連携する」からGoogleアカウントを連携してください。");
+      alert("先に「Gmailと連携する」からGoogleアカウントを連携してください。");
       return;
     }
     setChecking(true);
@@ -171,7 +171,7 @@ export function GmailSettingsPanel() {
                 検索条件: {status.gmailSearchQuery}
               </p>
               <p className="text-xs text-muted">
-                自動監視（30分ごと）:{" "}
+                自動監視（1日1回・Vercel Cron）:{" "}
                 <span className="text-main">
                   {status.autoMonitorEnabled ? "ON" : "OFF"}
                 </span>
@@ -179,7 +179,7 @@ export function GmailSettingsPanel() {
             </div>
           ) : (
             <p className="mt-4 text-sm text-muted">
-              未連携 — 「Gmail連携する」でGoogle認証を行ってください。
+              未連携 — 「Gmailと連携する」でGoogle認証を行ってください。
             </p>
           )}
 
@@ -187,11 +187,11 @@ export function GmailSettingsPanel() {
             {!connected &&
               (oauthReady ? (
                 <a href="/api/gmail/auth" className={connectLinkClass}>
-                  Gmail連携する
+                  Gmailと連携する
                 </a>
               ) : (
                 <Button type="button" disabled>
-                  Gmail連携する
+                  Gmailと連携する
                 </Button>
               ))}
 
@@ -201,7 +201,7 @@ export function GmailSettingsPanel() {
               disabled={checking || !connected}
               onClick={handleCheckNow}
             >
-              {checking ? "確認中..." : "さくら連絡網メールを今すぐ確認"}
+              {checking ? "チェック中..." : "今すぐチェック"}
             </Button>
 
             {connected && status && (
