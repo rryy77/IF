@@ -14,7 +14,7 @@ export async function GET() {
       userEmail: token?.user_email ?? null,
       autoMonitorEnabled: token?.auto_monitor_enabled ?? false,
       gmailSearchQuery: getGmailSearchQuery(),
-      expiresAt: token?.expires_at ?? null,
+      lastCheckedAt: token?.last_mail_check_at ?? null,
       oauthReady: env.oauthReady,
       missingEnv: env.missingEnv,
     });
@@ -25,7 +25,7 @@ export async function GET() {
       userEmail: null,
       autoMonitorEnabled: false,
       gmailSearchQuery: getGmailSearchQuery(),
-      expiresAt: null,
+      lastCheckedAt: null,
       oauthReady: env.oauthReady,
       missingEnv: env.missingEnv,
       dbError: message,

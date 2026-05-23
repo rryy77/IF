@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { CalendarList } from "@/components/CalendarList";
 import { MemoEditModal } from "@/components/MemoEditModal";
 import { DeleteManagePanel } from "@/components/DeleteManagePanel";
+import { GmailForegroundChecker } from "@/components/GmailForegroundChecker";
 import { HomeHeader } from "@/components/HomeHeader";
 import { NotificationSettings } from "@/components/NotificationSettings";
 import { SelectDeleteToolbar } from "@/components/SelectDeleteToolbar";
@@ -173,6 +174,7 @@ export default function HomePage() {
 
   return (
     <AppShell>
+      <GmailForegroundChecker />
       <HomeHeader
         onEditClick={handleEditClick}
         isEditActive={showManageMenu || isSelectDeleteMode}

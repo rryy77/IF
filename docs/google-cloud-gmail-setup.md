@@ -80,11 +80,14 @@ SQL Editor で実行:
 1. Vercel 本番 URL を開く
 2. **通知** → **Gmail連携する**
 3. Google 認証
-4. **今すぐ確認** でメール取り込みテスト
+4. **確認する** でメール取り込みテスト
 
 ## 9. Cron（本番）
 
-`vercel.json` で 1 日 1 回（UTC 0:00 = JST 9:00）`/api/cron/check-sakura-mails` が実行されます。Vercel Hobby は cron が 1 日 1 回までのため、それより頻繁にしたい場合は通知画面の「今すぐチェック」または手動で API を呼んでください。
+`vercel.json` で 5 分ごと（`*/5 * * * *`）`/api/cron/check-sakura-mails` を試行します。
+
+> Vercel **Hobby** は Cron が 1 日 1 回までのため、デプロイできない場合は `vercel.json` を `"0 0 * * *"` にし、`cronSchedule.ts` の `GMAIL_CRON_SCHEDULE` も同じ値に変更してください。  
+> その場合も、アプリ起動時・通知画面表示時のフォアグラウンド確認（5 分間隔）でメールを取り込みます。
 
 `CRON_SECRET` を Vercel に設定してください。
 

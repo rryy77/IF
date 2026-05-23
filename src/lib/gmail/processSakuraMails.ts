@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { noticeToInsertRow } from "@/lib/supabase/noticeMapper";
 import { sendPushToAll } from "@/lib/push/webPushServer";
 import { fetchGmailMessage, listSakuraMessageIds } from "./gmailClient";
-import { getGmailToken } from "./tokenStore";
+import { getGmailToken, updateLastMailCheckAt } from "./tokenStore";
 import { isMailProcessed, markMailProcessed } from "./processedMailStore";
 
 export type SakuraMailCheckResult = {
@@ -144,6 +144,10 @@ export async function processSakuraMails(
         `${mailId}: ${err instanceof Error ? err.message : "unknown"}`
       );
     }
+  }
+
+  if (result.checked > 0 || result.processed > 0) {
+    await updateLastMailCheckAt();
   }
 
   return result;

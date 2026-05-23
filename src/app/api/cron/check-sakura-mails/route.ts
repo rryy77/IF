@@ -22,14 +22,6 @@ export async function GET(request: Request) {
       });
     }
 
-    if (!token.auto_monitor_enabled) {
-      return NextResponse.json({
-        ok: true,
-        skipped: true,
-        message: "自動監視OFF",
-      });
-    }
-
     const result = await processSakuraMails(20);
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {

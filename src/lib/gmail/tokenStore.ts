@@ -7,6 +7,7 @@ export type GmailTokenRow = {
   expires_at: string | null;
   user_email: string | null;
   auto_monitor_enabled: boolean;
+  last_mail_check_at: string | null;
   updated_at: string;
 };
 
@@ -40,6 +41,7 @@ export async function saveGmailToken(params: {
     refresh_token: params.refreshToken ?? existing?.refresh_token ?? null,
     expires_at: params.expiresAt?.toISOString() ?? null,
     user_email: params.userEmail ?? existing?.user_email ?? null,
+    auto_monitor_enabled: true,
     updated_at: new Date().toISOString(),
   };
 
@@ -75,6 +77,24 @@ export async function setAutoMonitorEnabled(enabled: boolean): Promise<void> {
 
   if (error) {
     throw new Error(`自動監視設定の更新に失敗: ${error.message}`);
+  }
+}
+
+export async function updateLastMailCheckAt(): Promise<void> {
+  const supabase = createAdminClient();
+  const existing = await getGmailToken();
+  if (!existing) return;
+
+  const { error } = await supabase
+    .from("gmail_tokens")
+    .update({
+      last_mail_check_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", existing.id);
+
+  if (error) {
+    console.error("last_mail_check_at update failed:", error.message);
   }
 }
 

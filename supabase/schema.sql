@@ -59,6 +59,7 @@ create table if not exists gmail_tokens (
   expires_at timestamptz,
   user_email text,
   auto_monitor_enabled boolean default true,
+  last_mail_check_at timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

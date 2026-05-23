@@ -1,268 +1,215 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import {
+  markForegroundCheckDone,
+  runSilentGmailCheck,
+  shouldRunForegroundCheck,
+} from "@/lib/gmail/foregroundCheck";
 
 const connectLinkClass =
   "flex w-full items-center justify-center rounded-2xl bg-main px-4 py-3.5 text-base font-semibold text-background transition-all hover:bg-sky-300 active:scale-[0.98]";
 
 type GmailStatus = {
   connected: boolean;
-  userEmail: string | null;
-  autoMonitorEnabled: boolean;
-  gmailSearchQuery: string;
+  lastCheckedAt: string | null;
   oauthReady: boolean;
-  missingEnv: string[];
   dbError?: string;
-};
-
-type CheckResult = {
-  checked: number;
-  processed: number;
-  savedNotices: number;
-  ignored: number;
-  pushed?: number;
-  errors?: string[];
-  error?: string;
 };
 
 export function GmailSettingsPanel() {
   const [status, setStatus] = useState<GmailStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
-  const [lastResult, setLastResult] = useState<CheckResult | null>(null);
-  const [flash, setFlash] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const foregroundStarted = useRef(false);
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/gmail/status", { cache: "no-store" });
       const json = await res.json();
-      setStatus(json as GmailStatus);
+      return {
+        connected: Boolean(json.connected),
+        lastCheckedAt: json.lastCheckedAt ?? null,
+        oauthReady: Boolean(json.oauthReady),
+        dbError: json.dbError,
+      } as GmailStatus;
     } catch {
-      setStatus({
+      return {
         connected: false,
-        userEmail: null,
-        autoMonitorEnabled: false,
-        gmailSearchQuery: "",
+        lastCheckedAt: null,
         oauthReady: false,
-        missingEnv: ["NETWORK"],
-      });
+      } as GmailStatus;
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    loadStatus();
-
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("gmail") === "connected" || params.get("gmail_connected")) {
-      setFlash("Gmail連携が完了しました");
-      window.history.replaceState({}, "", "/notices#gmail-settings");
-      loadStatus();
-    }
-    if (params.get("gmail") === "error" || params.get("gmail_error")) {
-      const reason =
-        params.get("reason") ||
-        params.get("gmail_error") ||
-        "連携に失敗しました";
-      setFlash(decodeURIComponent(reason));
-      window.history.replaceState({}, "", "/notices#gmail-settings");
-    }
+  const applyStatus = useCallback(async () => {
+    const next = await loadStatus();
+    setStatus(next);
+    return next;
   }, [loadStatus]);
 
-  async function handleToggleMonitor() {
-    if (!status?.connected) return;
-    try {
-      const res = await fetch("/api/gmail/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          autoMonitorEnabled: !status.autoMonitorEnabled,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error);
-      await loadStatus();
-      setFlash(
-        json.autoMonitorEnabled ? "自動監視をONにしました" : "自動監視をOFFにしました"
-      );
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "設定の更新に失敗");
-    }
-  }
+  useEffect(() => {
+    void (async () => {
+      const next = await applyStatus();
+
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("gmail") === "connected" || params.get("gmail_connected")) {
+        window.history.replaceState({}, "", "/notices#gmail-settings");
+      } else if (params.get("gmail") === "error" || params.get("gmail_error")) {
+        setErrorMessage("Gmail連携に失敗しました。");
+        window.history.replaceState({}, "", "/notices#gmail-settings");
+      }
+
+      if (
+        next.connected &&
+        !foregroundStarted.current &&
+        shouldRunForegroundCheck(next.lastCheckedAt)
+      ) {
+        foregroundStarted.current = true;
+        try {
+          await runSilentGmailCheck();
+          await applyStatus();
+        } catch (e) {
+          console.warn("Gmail foreground check on notices:", e);
+        }
+      }
+    })();
+  }, [applyStatus]);
 
   async function handleCheckNow() {
-    if (!status?.connected) {
-      alert("先に「Gmailと連携する」からGoogleアカウントを連携してください。");
-      return;
-    }
+    if (!status?.connected) return;
+
     setChecking(true);
-    setLastResult(null);
+    setErrorMessage(null);
     try {
-      const res = await fetch("/api/gmail/check-sakura-mails", {
-        method: "POST",
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "チェック失敗");
-      setLastResult(json as CheckResult);
-      setFlash(
-        `確認 ${json.checked}件 · 処理 ${json.processed}件 · 保存 ${json.savedNotices}件 · 無視 ${json.ignored}件`
-      );
-      window.dispatchEvent(new Event("latest-if-notices-updated"));
+      await runSilentGmailCheck();
+      await applyStatus();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "メール確認に失敗");
+      console.error("Gmail check failed:", e);
+      setErrorMessage("メール確認に失敗しました。");
     } finally {
       setChecking(false);
     }
   }
 
+  async function handleDisconnect() {
+    if (!confirm("Gmail連携を解除しますか？")) return;
+    setMenuOpen(false);
+    setErrorMessage(null);
+    try {
+      const res = await fetch("/api/gmail/disconnect", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      markForegroundCheckDone();
+      await applyStatus();
+    } catch (e) {
+      console.error("Gmail disconnect failed:", e);
+      setErrorMessage("連携の解除に失敗しました。");
+    }
+  }
+
   const oauthReady = status?.oauthReady ?? false;
   const connected = status?.connected ?? false;
+  const canConnect = oauthReady && !status?.dbError;
 
   return (
     <section
       id="gmail-settings"
-      className="mb-6 rounded-2xl border-2 border-main/25 bg-card p-4 shadow-lg shadow-main/5"
+      className="mb-6 rounded-2xl border border-[#334155] bg-card p-4"
     >
-      <h2 className="text-base font-semibold text-foreground">Gmail連携</h2>
-      <p className="mt-1 text-sm text-muted">
-        さくら連絡網メールを自動で確認します（Gmail API）
-      </p>
+      {loading ? (
+        <p className="text-sm text-muted">読み込み中...</p>
+      ) : (
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="text-base font-semibold text-foreground">
+            {connected ? "Gmail連携済み" : "Gmail連携"}
+          </h2>
+          {connected && (
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setMenuOpen((o) => !o)}
+                className="flex h-9 w-9 items-center justify-center rounded-full text-lg text-muted hover:bg-[#334155]/60"
+                aria-label="Gmailメニュー"
+                aria-expanded={menuOpen}
+              >
+                ⋯
+              </button>
+              {menuOpen && (
+                <>
+                  <button
+                    type="button"
+                    className="fixed inset-0 z-10"
+                    aria-label="メニューを閉じる"
+                    onClick={() => setMenuOpen(false)}
+                  />
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-full z-20 mt-1 min-w-[8rem] overflow-hidden rounded-xl border border-[#334155] bg-card shadow-lg"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={handleDisconnect}
+                      className="flex min-h-[44px] w-full items-center px-4 text-left text-sm text-red-300 hover:bg-[#334155]/40"
+                    >
+                      連携を解除
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
-      {flash && (
-        <p className="mt-3 rounded-lg border border-main/30 bg-main/10 px-3 py-2 text-sm text-main">
-          {flash}
+      {!loading && !connected && (
+        <p className="mt-1 text-sm text-muted">学校メールを取り込む</p>
+      )}
+
+      {errorMessage && (
+        <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-200">
+          {errorMessage}
         </p>
       )}
 
-      {loading ? (
-        <p className="mt-4 text-sm text-muted">連携状態を読み込み中...</p>
-      ) : (
-        <>
-          {!oauthReady && (
-            <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-3 text-sm text-amber-100">
-              <p className="font-medium">Google連携の環境変数が未設定です</p>
-              <p className="mt-1 text-xs text-amber-200/90">
-                Vercel に以下を設定して Redeploy してください。
-              </p>
-              <ul className="mt-2 list-inside list-disc text-xs">
-                {(status?.missingEnv ?? []).map((key) => (
-                  <li key={key}>{key}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+      {!loading && !connected && !canConnect && (
+        <p className="mt-3 text-sm text-amber-200/90">
+          いま Gmail 連携を利用できません。
+        </p>
+      )}
 
-          {status?.dbError && (
-            <p className="mt-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-300">
-              DB: {status.dbError}（supabase/migrations/add_gmail_tokens.sql
-              を実行してください）
-            </p>
-          )}
+      {!loading && (
+        <div className="mt-3 space-y-2">
+          {!connected &&
+            (canConnect ? (
+              <a href="/api/gmail/auth" className={connectLinkClass}>
+                Googleと連携する
+              </a>
+            ) : (
+              <Button type="button" disabled>
+                Googleと連携する
+              </Button>
+            ))}
 
-          {connected && status ? (
-            <div className="mt-4">
-              <p className="text-sm font-medium text-emerald-300">
-                Gmail連携済み
-              </p>
-              {status.userEmail && (
-                <p className="mt-0.5 text-xs text-muted">{status.userEmail}</p>
-              )}
-              <p className="mt-2 text-[11px] text-muted">
-                検索条件: {status.gmailSearchQuery}
-              </p>
-              <p className="text-xs text-muted">
-                自動監視（1日1回・Vercel Cron）:{" "}
-                <span className="text-main">
-                  {status.autoMonitorEnabled ? "ON" : "OFF"}
-                </span>
-              </p>
-            </div>
-          ) : (
-            <p className="mt-4 text-sm text-muted">
-              未連携 — 「Gmailと連携する」でGoogle認証を行ってください。
-            </p>
-          )}
-
-          <div className="mt-4 space-y-2">
-            {!connected &&
-              (oauthReady ? (
-                <a href="/api/gmail/auth" className={connectLinkClass}>
-                  Gmailと連携する
-                </a>
-              ) : (
-                <Button type="button" disabled>
-                  Gmailと連携する
-                </Button>
-              ))}
-
+          {connected && (
             <Button
               type="button"
               variant="secondary"
-              disabled={checking || !connected}
+              disabled={checking}
               onClick={handleCheckNow}
+              className="w-full"
             >
-              {checking ? "チェック中..." : "今すぐチェック"}
+              {checking ? "確認中..." : "確認する"}
             </Button>
-
-            {connected && status && (
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={handleToggleMonitor}
-                  className="min-h-[44px] flex-1 rounded-xl border border-[#334155] px-3 py-2 text-sm text-foreground"
-                >
-                  自動監視 {status.autoMonitorEnabled ? "OFF" : "ON"}
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (!confirm("Gmail連携を解除しますか？")) return;
-                    const res = await fetch("/api/gmail/disconnect", {
-                      method: "POST",
-                    });
-                    const json = await res.json();
-                    if (!res.ok) {
-                      alert(json.error ?? "解除失敗");
-                      return;
-                    }
-                    setFlash("Gmail連携を解除しました");
-                    loadStatus();
-                  }}
-                  className="min-h-[44px] rounded-xl px-3 py-2 text-sm text-red-300"
-                >
-                  連携解除
-                </button>
-              </div>
-            )}
-          </div>
-
-          {lastResult && !lastResult.error && (
-            <div className="mt-4 rounded-xl bg-background px-3 py-3 text-sm">
-              <p className="font-medium text-foreground">確認結果</p>
-              <ul className="mt-2 space-y-1 text-muted">
-                <li>確認: {lastResult.checked}件</li>
-                <li>処理: {lastResult.processed}件</li>
-                <li>通知欄に保存: {lastResult.savedNotices}件</li>
-                <li>無視: {lastResult.ignored}件</li>
-                {lastResult.pushed != null && (
-                  <li>即時通知: {lastResult.pushed}件</li>
-                )}
-              </ul>
-              {lastResult.errors && lastResult.errors.length > 0 && (
-                <p className="mt-2 text-xs text-red-300">
-                  {lastResult.errors.join(" / ")}
-                </p>
-              )}
-            </div>
           )}
-
-          <p className="mt-3 text-[10px] text-muted">
-            API: GET /api/gmail/auth · POST /api/gmail/check-sakura-mails
-          </p>
-        </>
+        </div>
       )}
     </section>
   );
