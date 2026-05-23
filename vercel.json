@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/check-sakura-mails",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }

@@ -84,7 +84,7 @@ SQL Editor で実行:
 
 ## 9. Cron（本番）
 
-`vercel.json` で 30 分ごとに `/api/cron/check-sakura-mails` が実行されます。
+`vercel.json` で 1 日 1 回（UTC 0:00 = JST 9:00）`/api/cron/check-sakura-mails` が実行されます。Vercel Hobby は cron が 1 日 1 回までのため、それより頻繁にしたい場合は通知画面の「今すぐチェック」または手動で API を呼んでください。
 
 `CRON_SECRET` を Vercel に設定してください。
 
