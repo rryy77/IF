@@ -33,23 +33,6 @@ export async function fetchNotices(): Promise<NoticeItem[]> {
   return (data ?? []).map(rowToNotice);
 }
 
-export async function fetchUnreadNoticeCount(): Promise<number> {
-  if (!isSupabaseConfigured()) return 0;
-
-  const supabase = getClient();
-  const { count, error } = await supabase
-    .from("notices")
-    .select("*", { count: "exact", head: true })
-    .eq("is_read", false)
-    .neq("category", "unnecessary");
-
-  if (error) {
-    throw wrapError("未読数の取得に失敗しました", error.message);
-  }
-
-  return count ?? 0;
-}
-
 export async function insertNotice(
   notice: Omit<NoticeItem, "id" | "createdAt">
 ): Promise<NoticeItem> {
@@ -67,16 +50,4 @@ export async function insertNotice(
   }
 
   return rowToNotice(data);
-}
-
-export async function markNoticeRead(id: string): Promise<void> {
-  const supabase = getClient();
-  const { error } = await supabase
-    .from("notices")
-    .update({ is_read: true })
-    .eq("id", id);
-
-  if (error) {
-    throw wrapError("既読の更新に失敗しました", error.message);
-  }
 }

@@ -1,19 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { GmailSettingsPanel } from "@/components/GmailSettingsPanel";
 import { PageHeader } from "@/components/PageHeader";
-import { Button } from "@/components/ui/Button";
-import {
-  CATEGORY_LABELS,
-  IMPORTANCE_COLORS,
-  IMPORTANCE_LABELS,
-} from "@/lib/sakura/noticeLabels";
 import type { NoticeItem } from "@/lib/sakura/types";
-import { getNotices, setNoticeRead } from "@/lib/noticesStorage";
+import { getNotices } from "@/lib/noticesStorage";
 
 function formatNoticeDate(iso: string): string {
   const d = new Date(iso);
@@ -23,6 +16,13 @@ function formatNoticeDate(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function noticeExcerpt(notice: NoticeItem): string | null {
+  const text = notice.summary?.trim() || notice.body?.trim();
+  if (!text) return null;
+  const oneLine = text.replace(/\s+/g, " ");
+  return oneLine.length > 80 ? `${oneLine.slice(0, 80)}…` : oneLine;
 }
 
 export default function NoticesPage() {
@@ -52,13 +52,9 @@ export default function NoticesPage() {
       window.removeEventListener("latest-if-notices-updated", onUpdate);
   }, [load]);
 
-  async function handleMarkRead(id: string) {
-    await setNoticeRead(id);
-    await load();
-  }
-
-  function handlePdfParse(url: string) {
-    sessionStorage.setItem("latest-if-pdf-url", url);
+  function handleNoticeClick(notice: NoticeItem) {
+    if (!notice.pdfUrl) return;
+    sessionStorage.setItem("latest-if-pdf-url", notice.pdfUrl);
     sessionStorage.setItem("latest-if-upload-filename", "sakura-schedule.pdf");
     router.push("/add/from-url");
   }
@@ -67,105 +63,49 @@ export default function NoticesPage() {
     <AppShell>
       <PageHeader title="通知" backHref="/" backLabel="ホーム" />
 
-      {/* Gmail連携 — 常に最上部に表示 */}
       <GmailSettingsPanel />
 
-      <details className="mb-4 rounded-xl border border-[#334155] bg-card/50 px-3 py-2">
-        <summary className="cursor-pointer text-sm text-muted">
-          手動でメール本文を貼り付け（v1）
-        </summary>
-        <div className="mt-2 pb-2">
-          <Link href="/mail/import">
-            <Button type="button" variant="secondary">
-              さくら連絡網メールを貼り付け
-            </Button>
-          </Link>
-        </div>
-      </details>
-
-      <h2 className="mb-3 text-sm font-semibold text-muted">通知一覧</h2>
-
       {error && (
-        <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-          {error}
-          <p className="mt-2 text-xs">
-            Supabase で notices テーブルを作成してください（supabase/migrations/add_notices.sql）
-          </p>
-        </div>
+        <p className="mb-4 text-sm text-red-300">{error}</p>
       )}
 
       {loading ? (
-        <p className="text-center text-sm text-muted">読み込み中...</p>
+        <p className="py-8 text-center text-sm text-muted">読み込み中...</p>
       ) : notices.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-muted/30 p-8 text-center text-sm text-muted">
-          通知はまだありません。Gmail連携後「今すぐ確認」を試してください。
-        </p>
+        <p className="py-12 text-center text-sm text-muted">通知はありません</p>
       ) : (
-        <ul className="space-y-3">
-          {notices.map((notice) => (
-            <li
-              key={notice.id}
-              className={`rounded-2xl border p-4 ${
-                notice.isRead
-                  ? "border-[#334155] bg-card/60"
-                  : "border-main/30 bg-card"
-              }`}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <h3 className="font-semibold text-foreground">{notice.title}</h3>
-                {!notice.isRead && (
-                  <span className="rounded-full bg-main/20 px-2 py-0.5 text-[10px] text-main">
-                    未読
-                  </span>
-                )}
-              </div>
+        <ul className="divide-y divide-[#334155]/80">
+          {notices.map((notice) => {
+            const excerpt = noticeExcerpt(notice);
+            const hasPdf = Boolean(notice.pdfUrl);
 
-              {notice.summary && (
-                <p className="mt-2 text-sm text-muted">{notice.summary}</p>
-              )}
-
-              <div className="mt-2 flex flex-wrap gap-2">
-                <span className="rounded-full bg-slate-700/50 px-2 py-0.5 text-[10px] text-slate-300">
-                  {CATEGORY_LABELS[notice.category]}
-                </span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] ${IMPORTANCE_COLORS[notice.importance]}`}
+            return (
+              <li key={notice.id}>
+                <button
+                  type="button"
+                  onClick={() => handleNoticeClick(notice)}
+                  disabled={!hasPdf}
+                  className={`w-full py-4 text-left ${
+                    hasPdf
+                      ? "cursor-pointer active:opacity-80"
+                      : "cursor-default"
+                  }`}
                 >
-                  {IMPORTANCE_LABELS[notice.importance]}
-                </span>
-                {notice.shouldCreateEvent && (
-                  <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-300">
-                    予定候補
-                  </span>
-                )}
-              </div>
-
-              <p className="mt-2 text-xs text-muted">
-                {formatNoticeDate(notice.createdAt)}
-              </p>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                {!notice.isRead && (
-                  <button
-                    type="button"
-                    onClick={() => handleMarkRead(notice.id)}
-                    className="rounded-lg border border-main/30 px-3 py-1.5 text-xs text-main"
-                  >
-                    既読にする
-                  </button>
-                )}
-                {notice.pdfUrl && (
-                  <button
-                    type="button"
-                    onClick={() => handlePdfParse(notice.pdfUrl!)}
-                    className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-200"
-                  >
-                    PDF解析へ
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
+                  <h3 className="text-base font-medium text-foreground">
+                    {notice.title}
+                  </h3>
+                  {excerpt && (
+                    <p className="mt-1 text-sm leading-relaxed text-muted">
+                      {excerpt}
+                    </p>
+                  )}
+                  <p className="mt-1.5 text-xs text-muted/80">
+                    {formatNoticeDate(notice.createdAt)}
+                  </p>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </AppShell>

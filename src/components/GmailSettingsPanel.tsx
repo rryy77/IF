@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import {
-  markForegroundCheckDone,
   runSilentGmailCheck,
   shouldRunForegroundCheck,
 } from "@/lib/gmail/foregroundCheck";
@@ -20,14 +19,13 @@ type GmailStatus = {
 
 export function GmailSettingsPanel() {
   const [status, setStatus] = useState<GmailStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [ready, setReady] = useState(false);
   const [checking, setChecking] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [checkError, setCheckError] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const foregroundStarted = useRef(false);
 
-  const loadStatus = useCallback(async () => {
-    setLoading(true);
+  const loadStatus = useCallback(async (): Promise<GmailStatus> => {
     try {
       const res = await fetch("/api/gmail/status", { cache: "no-store" });
       const json = await res.json();
@@ -36,21 +34,20 @@ export function GmailSettingsPanel() {
         lastCheckedAt: json.lastCheckedAt ?? null,
         oauthReady: Boolean(json.oauthReady),
         dbError: json.dbError,
-      } as GmailStatus;
+      };
     } catch {
       return {
         connected: false,
         lastCheckedAt: null,
         oauthReady: false,
-      } as GmailStatus;
-    } finally {
-      setLoading(false);
+      };
     }
   }, []);
 
   const applyStatus = useCallback(async () => {
     const next = await loadStatus();
     setStatus(next);
+    setReady(true);
     return next;
   }, [loadStatus]);
 
@@ -59,10 +56,12 @@ export function GmailSettingsPanel() {
       const next = await applyStatus();
 
       const params = new URLSearchParams(window.location.search);
-      if (params.get("gmail") === "connected" || params.get("gmail_connected")) {
-        window.history.replaceState({}, "", "/notices#gmail-settings");
-      } else if (params.get("gmail") === "error" || params.get("gmail_error")) {
-        setErrorMessage("Gmail連携に失敗しました。");
+      if (
+        params.get("gmail") === "connected" ||
+        params.get("gmail_connected") ||
+        params.get("gmail") === "error" ||
+        params.get("gmail_error")
+      ) {
         window.history.replaceState({}, "", "/notices#gmail-settings");
       }
 
@@ -86,13 +85,13 @@ export function GmailSettingsPanel() {
     if (!status?.connected) return;
 
     setChecking(true);
-    setErrorMessage(null);
+    setCheckError(false);
     try {
       await runSilentGmailCheck();
       await applyStatus();
     } catch (e) {
       console.error("Gmail check failed:", e);
-      setErrorMessage("メール確認に失敗しました。");
+      setCheckError(true);
     } finally {
       setChecking(false);
     }
@@ -101,104 +100,71 @@ export function GmailSettingsPanel() {
   async function handleDisconnect() {
     if (!confirm("Gmail連携を解除しますか？")) return;
     setMenuOpen(false);
-    setErrorMessage(null);
     try {
       const res = await fetch("/api/gmail/disconnect", { method: "POST" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
-      markForegroundCheckDone();
+      setCheckError(false);
       await applyStatus();
     } catch (e) {
       console.error("Gmail disconnect failed:", e);
-      setErrorMessage("連携の解除に失敗しました。");
     }
   }
 
-  const oauthReady = status?.oauthReady ?? false;
   const connected = status?.connected ?? false;
-  const canConnect = oauthReady && !status?.dbError;
+  const canConnect = ready && (status?.oauthReady ?? false) && !status?.dbError;
 
   return (
-    <section
-      id="gmail-settings"
-      className="mb-6 rounded-2xl border border-[#334155] bg-card p-4"
-    >
-      {loading ? (
-        <p className="text-sm text-muted">読み込み中...</p>
-      ) : (
-        <div className="flex items-start justify-between gap-2">
-          <h2 className="text-base font-semibold text-foreground">
-            {connected ? "Gmail連携済み" : "Gmail連携"}
-          </h2>
-          {connected && (
-            <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => setMenuOpen((o) => !o)}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-lg text-muted hover:bg-[#334155]/60"
-                aria-label="Gmailメニュー"
-                aria-expanded={menuOpen}
-              >
-                ⋯
-              </button>
-              {menuOpen && (
-                <>
+    <section id="gmail-settings" className="mb-6 rounded-2xl bg-card p-4">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-base font-semibold text-foreground">
+          {ready && connected ? "Gmail連携済み" : "Gmail連携"}
+        </h2>
+        {ready && connected && (
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((o) => !o)}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-[#334155]/50"
+              aria-label="メニュー"
+              aria-expanded={menuOpen}
+            >
+              ⋯
+            </button>
+            {menuOpen && (
+              <>
+                <button
+                  type="button"
+                  className="fixed inset-0 z-10"
+                  aria-label="閉じる"
+                  onClick={() => setMenuOpen(false)}
+                />
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-[#334155] bg-card shadow-lg"
+                >
                   <button
                     type="button"
-                    className="fixed inset-0 z-10"
-                    aria-label="メニューを閉じる"
-                    onClick={() => setMenuOpen(false)}
-                  />
-                  <div
-                    role="menu"
-                    className="absolute right-0 top-full z-20 mt-1 min-w-[8rem] overflow-hidden rounded-xl border border-[#334155] bg-card shadow-lg"
+                    role="menuitem"
+                    onClick={handleDisconnect}
+                    className="min-h-[40px] px-4 text-left text-sm text-muted hover:bg-[#334155]/40"
                   >
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={handleDisconnect}
-                      className="flex min-h-[44px] w-full items-center px-4 text-left text-sm text-red-300 hover:bg-[#334155]/40"
-                    >
-                      連携を解除
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
+                    連携を解除
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {checkError && (
+        <p className="mt-2 text-sm text-red-300">メール確認に失敗しました</p>
       )}
 
-      {!loading && !connected && (
-        <p className="mt-1 text-sm text-muted">学校メールを取り込む</p>
-      )}
-
-      {errorMessage && (
-        <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-200">
-          {errorMessage}
-        </p>
-      )}
-
-      {!loading && !connected && !canConnect && (
-        <p className="mt-3 text-sm text-amber-200/90">
-          いま Gmail 連携を利用できません。
-        </p>
-      )}
-
-      {!loading && (
-        <div className="mt-3 space-y-2">
-          {!connected &&
-            (canConnect ? (
-              <a href="/api/gmail/auth" className={connectLinkClass}>
-                Googleと連携する
-              </a>
-            ) : (
-              <Button type="button" disabled>
-                Googleと連携する
-              </Button>
-            ))}
-
-          {connected && (
+      {ready && (
+        <div className="mt-3">
+          {connected ? (
             <Button
               type="button"
               variant="secondary"
@@ -207,6 +173,14 @@ export function GmailSettingsPanel() {
               className="w-full"
             >
               {checking ? "確認中..." : "確認する"}
+            </Button>
+          ) : canConnect ? (
+            <a href="/api/gmail/auth" className={connectLinkClass}>
+              Googleと連携する
+            </a>
+          ) : (
+            <Button type="button" disabled className="w-full">
+              Googleと連携する
             </Button>
           )}
         </div>
