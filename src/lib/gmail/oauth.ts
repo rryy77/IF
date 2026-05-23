@@ -14,12 +14,17 @@ export function buildGoogleAuthUrl(state: string): string {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
-export async function exchangeCodeForTokens(code: string): Promise<{
+export async function exchangeCodeForTokens(
+  code: string,
+  redirectUriOverride?: string
+): Promise<{
   accessToken: string;
   refreshToken: string | null;
   expiresAt: Date | null;
 }> {
-  const { clientId, clientSecret, redirectUri } = getGoogleOAuthConfig();
+  const { clientId, clientSecret, redirectUri: configUri } =
+    getGoogleOAuthConfig();
+  const redirectUri = redirectUriOverride ?? configUri;
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",

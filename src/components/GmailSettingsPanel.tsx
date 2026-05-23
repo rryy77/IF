@@ -57,15 +57,18 @@ export function GmailSettingsPanel() {
     loadStatus();
 
     const params = new URLSearchParams(window.location.search);
-    if (params.get("gmail_connected")) {
+    if (params.get("gmail") === "connected" || params.get("gmail_connected")) {
       setFlash("Gmail連携が完了しました");
-      window.history.replaceState({}, "", "/notices");
+      window.history.replaceState({}, "", "/notices#gmail-settings");
       loadStatus();
     }
-    const err = params.get("gmail_error");
-    if (err) {
-      setFlash(decodeURIComponent(err));
-      window.history.replaceState({}, "", "/notices");
+    if (params.get("gmail") === "error" || params.get("gmail_error")) {
+      const reason =
+        params.get("reason") ||
+        params.get("gmail_error") ||
+        "連携に失敗しました";
+      setFlash(decodeURIComponent(reason));
+      window.history.replaceState({}, "", "/notices#gmail-settings");
     }
   }, [loadStatus]);
 
