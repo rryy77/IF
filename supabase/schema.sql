@@ -12,6 +12,7 @@ create table if not exists events (
   source text default 'pdf',
   raw_text text,
   confidence numeric,
+  description text,
   reminder_sent_at timestamptz,
   created_at timestamptz default now()
 );

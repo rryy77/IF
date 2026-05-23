@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { CalendarList } from "@/components/CalendarList";
+import { MemoEditModal } from "@/components/MemoEditModal";
 import { DeleteManagePanel } from "@/components/DeleteManagePanel";
 import { HomeHeader } from "@/components/HomeHeader";
 import { NotificationSettings } from "@/components/NotificationSettings";
@@ -14,16 +16,20 @@ import {
   deleteConfirmedEventsByIds,
   deletePastConfirmedEvents,
   getConfirmedEvents,
+  getEventById,
+  updateEventDescription,
 } from "@/lib/storage";
 import type { EventItem } from "@/lib/types";
 
 export default function HomePage() {
+  const router = useRouter();
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showManageMenu, setShowManageMenu] = useState(false);
   const [isSelectDeleteMode, setIsSelectDeleteMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [memoEvent, setMemoEvent] = useState<EventItem | null>(null);
 
   const loadEvents = useCallback(async () => {
     setLoading(true);
@@ -132,6 +138,31 @@ export default function HomePage() {
     setSelectedIds(new Set());
   }
 
+  async function handleOpenMemo(id: string) {
+    try {
+      const event = await getEventById(id);
+      if (event) setMemoEvent(event);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "予定の読み込みに失敗しました");
+    }
+  }
+
+  async function handleSaveMemo(description: string | null) {
+    if (!memoEvent) return;
+    await updateEventDescription(memoEvent.id, description);
+    await loadEvents();
+  }
+
+  async function handleDeleteMemo(id: string) {
+    if (!window.confirm("このメモを削除しますか？")) return;
+    try {
+      await updateEventDescription(id, null);
+      await loadEvents();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "メモの削除に失敗しました");
+    }
+  }
+
   function handleEditClick() {
     if (isSelectDeleteMode) {
       handleCancelSelect();
@@ -178,12 +209,23 @@ export default function HomePage() {
         <CalendarList
           events={upcomingEvents}
           emptyMessage="今後の予定はありません。右上の＋からPDFを追加できます。"
+          onEdit={(id) => router.push(`/events/${id}/edit`)}
+          onMemo={handleOpenMemo}
+          onDeleteMemo={handleDeleteMemo}
           onDelete={handleDeleteEvent}
           highlightToday
           selectMode={isSelectDeleteMode}
           selectedIds={selectedIds}
           onToggleSelect={handleToggleSelect}
-          showCardDelete={!isSelectDeleteMode}
+          showCardActions={!isSelectDeleteMode}
+        />
+      )}
+
+      {memoEvent && (
+        <MemoEditModal
+          event={memoEvent}
+          onSave={handleSaveMemo}
+          onClose={() => setMemoEvent(null)}
         />
       )}
     </AppShell>

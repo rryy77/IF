@@ -1,3 +1,4 @@
+import { EventDescriptionBox } from "@/components/EventDescriptionBox";
 import type { EventItem } from "@/lib/types";
 import { formatDateRange, TYPE_COLORS, TYPE_LABELS } from "@/lib/eventUtils";
 
@@ -25,6 +26,10 @@ export function EventCard({ event, onEdit, onDelete }: EventCardProps) {
 
       {event.startTime && (
         <p className="mt-1 text-sm text-muted">{event.startTime}</p>
+      )}
+
+      {event.description && (
+        <EventDescriptionBox text={event.description} />
       )}
 
       {(onEdit || onDelete) && (

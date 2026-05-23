@@ -1,9 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { EventItem } from "@/lib/types";
-import { TYPE_LABELS, TYPE_OPTIONS } from "@/lib/eventUtils";
+import {
+  getDateInputBounds,
+  ManualEventFormFields,
+} from "@/components/ManualEventFormFields";
 import { Button } from "@/components/ui/Button";
+import {
+  eventToForm,
+  formToUpdatedEventItem,
+  validateManualEvent,
+  type ManualEventErrors,
+  type ManualEventForm,
+} from "@/lib/validateManualEvent";
 
 type EventEditModalProps = {
   event: EventItem;
@@ -16,10 +26,44 @@ export function EventEditModal({
   onSave,
   onClose,
 }: EventEditModalProps) {
-  const [form, setForm] = useState<EventItem>({ ...event });
+  const dateBounds = useMemo(() => getDateInputBounds(), []);
+  const initial = useMemo(() => eventToForm(event), [event]);
+  const [isRangeMode, setIsRangeMode] = useState(initial.isRangeMode);
+  const [form, setForm] = useState<ManualEventForm>(initial.form);
+  const [errors, setErrors] = useState<ManualEventErrors>({});
 
-  function update<K extends keyof EventItem>(key: K, value: EventItem[K]) {
+  function update<K extends keyof ManualEventForm>(
+    key: K,
+    value: ManualEventForm[K]
+  ) {
     setForm((prev) => ({ ...prev, [key]: value }));
+    if (errors[key as keyof ManualEventErrors]) {
+      setErrors((prev) => ({ ...prev, [key]: undefined }));
+    }
+  }
+
+  function switchToRange(on: boolean) {
+    setIsRangeMode(on);
+    setErrors((prev) => ({ ...prev, endDate: undefined, date: undefined }));
+    if (on && !form.endDate) {
+      setForm((prev) => ({ ...prev, endDate: prev.date }));
+    }
+    if (!on) {
+      setForm((prev) => ({ ...prev, endDate: "" }));
+    }
+  }
+
+  function handleSave() {
+    const validation = validateManualEvent(form, isRangeMode);
+    if (Object.keys(validation).length > 0) {
+      setErrors(validation);
+      return;
+    }
+    onSave(
+      formToUpdatedEventItem(form, isRangeMode, event, {
+        updateDescription: false,
+      })
+    );
   }
 
   return (
@@ -35,72 +79,18 @@ export function EventEditModal({
           予定を編集
         </h2>
 
-        <div className="space-y-3">
-          <label className="block">
-            <span className="text-xs text-muted">タイトル</span>
-            <input
-              type="text"
-              value={form.title}
-              onChange={(e) => update("title", e.target.value)}
-              className="mt-1 w-full rounded-xl bg-background px-3 py-2 text-foreground"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-xs text-muted">開始日</span>
-            <input
-              type="date"
-              value={form.date}
-              onChange={(e) => update("date", e.target.value)}
-              className="mt-1 w-full rounded-xl bg-background px-3 py-2 text-foreground"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-xs text-muted">終了日（期間予定）</span>
-            <input
-              type="date"
-              value={form.endDate ?? ""}
-              onChange={(e) =>
-                update("endDate", e.target.value || undefined)
-              }
-              className="mt-1 w-full rounded-xl bg-background px-3 py-2 text-foreground"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-xs text-muted">開始時刻</span>
-            <input
-              type="time"
-              value={form.startTime ?? ""}
-              onChange={(e) =>
-                update("startTime", e.target.value || undefined)
-              }
-              className="mt-1 w-full rounded-xl bg-background px-3 py-2 text-foreground"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-xs text-muted">種類</span>
-            <select
-              value={form.type}
-              onChange={(e) =>
-                update("type", e.target.value as EventItem["type"])
-              }
-              className="mt-1 w-full rounded-xl bg-background px-3 py-2 text-foreground"
-            >
-              {TYPE_OPTIONS.map((t) => (
-                <option key={t} value={t}>
-                  {TYPE_LABELS[t]}
-                </option>
-              ))}
-            </select>
-          </label>
-
-        </div>
+        <ManualEventFormFields
+          form={form}
+          errors={errors}
+          isRangeMode={isRangeMode}
+          dateBounds={dateBounds}
+          onUpdate={update}
+          onSwitchRange={switchToRange}
+          showMemoField={false}
+        />
 
         <div className="mt-5 space-y-2">
-          <Button onClick={() => onSave(form)}>保存</Button>
+          <Button onClick={handleSave}>保存</Button>
           <Button variant="ghost" onClick={onClose}>
             キャンセル
           </Button>

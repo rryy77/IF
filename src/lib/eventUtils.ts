@@ -91,6 +91,10 @@ export function getTodayDateString(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+export function hasEventMemo(event: EventItem): boolean {
+  return Boolean(event.description?.trim());
+}
+
 export function isRangeEvent(event: EventItem): boolean {
   return Boolean(event.endDate && event.endDate !== event.date);
 }

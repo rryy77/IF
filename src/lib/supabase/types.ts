@@ -10,6 +10,7 @@ export type EventRow = {
   source: string;
   raw_text: string | null;
   confidence: number | null;
+  description: string | null;
   reminder_sent_at: string | null;
   created_at: string;
 };

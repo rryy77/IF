@@ -5,7 +5,10 @@ import {
   deleteEventsByIds,
   deletePastEvents,
   fetchConfirmedEvents,
+  fetchEventById,
   insertConfirmedEvents,
+  updateEventById,
+  updateEventDescriptionById,
 } from "./supabase/eventsRepository";
 import type { EventItem, ExtractionGapWarning } from "./types";
 
@@ -23,6 +26,35 @@ export async function getConfirmedEvents(): Promise<EventItem[]> {
 
 export async function addConfirmedEvents(events: EventItem[]): Promise<void> {
   await insertConfirmedEvents(events);
+  dispatchEventsUpdated();
+}
+
+/** 手動で1件追加（source: manual） */
+export async function getEventById(id: string): Promise<EventItem | null> {
+  return fetchEventById(id);
+}
+
+export async function updateConfirmedEvent(event: EventItem): Promise<void> {
+  await updateEventById(event);
+  dispatchEventsUpdated();
+}
+
+export async function updateEventDescription(
+  id: string,
+  description: string | null
+): Promise<void> {
+  await updateEventDescriptionById(id, description);
+  dispatchEventsUpdated();
+}
+
+export async function createManualEvent(event: EventItem): Promise<void> {
+  await insertConfirmedEvents([
+    {
+      ...event,
+      status: "confirmed",
+      source: "manual",
+    },
+  ]);
   dispatchEventsUpdated();
 }
 

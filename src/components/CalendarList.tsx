@@ -1,16 +1,17 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { EventItem } from "@/lib/types";
+import { EventCardOverflowMenu } from "@/components/EventCardOverflowMenu";
+import { EventDescriptionBox } from "@/components/EventDescriptionBox";
 import {
   formatDateJa,
   formatDateRange,
-  formatShortDate,
   formatTime,
   getMonthLabel,
   getRangeCardStyle,
-  getRangeDays,
   groupEventsByMonth,
+  hasEventMemo,
   isRangeEvent,
   isRangeEventActiveToday,
   isSingleDayEventToday,
@@ -22,29 +23,52 @@ import {
 type CalendarListProps = {
   events: EventItem[];
   emptyMessage?: string;
+  onEdit?: (id: string) => void;
+  onMemo?: (id: string) => void;
+  onDeleteMemo?: (id: string) => void;
   onDelete?: (id: string, isRange: boolean) => void;
   highlightToday?: boolean;
   selectMode?: boolean;
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
-  showCardDelete?: boolean;
+  showCardActions?: boolean;
 };
+
+const memoBtnBase =
+  "min-h-[32px] shrink-0 rounded-lg px-3 py-1 text-sm transition-colors active:scale-[0.98]";
+
+const memoCreateClass = `${memoBtnBase} border border-amber-500/30 bg-amber-500/10 text-amber-200/90 hover:bg-amber-500/15`;
+
+const memoDeleteClass = `${memoBtnBase} border border-slate-500/30 bg-slate-800/40 text-slate-400 hover:bg-slate-700/50`;
 
 export function CalendarList({
   events,
   emptyMessage = "まだ予定がありません。右上の＋からPDFを追加できます。",
+  onEdit,
+  onMemo,
+  onDeleteMemo,
   onDelete,
   highlightToday = false,
   selectMode = false,
   selectedIds = new Set(),
   onToggleSelect,
-  showCardDelete = true,
+  showCardActions = true,
 }: CalendarListProps) {
+  const [openMenuEventId, setOpenMenuEventId] = useState<string | null>(null);
+
   const grouped = useMemo(() => groupEventsByMonth(events), [events]);
   const months = useMemo(
     () => Array.from(grouped.keys()).sort(),
     [grouped]
   );
+
+  useEffect(() => {
+    if (!openMenuEventId) return;
+
+    const closeMenu = () => setOpenMenuEventId(null);
+    document.addEventListener("click", closeMenu);
+    return () => document.removeEventListener("click", closeMenu);
+  }, [openMenuEventId]);
 
   if (events.length === 0) {
     return (
@@ -53,6 +77,11 @@ export function CalendarList({
       </div>
     );
   }
+
+  const showOverflowMenu =
+    showCardActions && !selectMode && (onEdit || onDelete);
+  const showMemoActions =
+    showCardActions && !selectMode && (onMemo || onDeleteMemo);
 
   return (
     <div className="space-y-6">
@@ -71,23 +100,44 @@ export function CalendarList({
                 highlightToday && isSingleDayEventToday(event);
               const isActiveRange =
                 highlightToday && isRangeEventActiveToday(event);
-              const days = range
-                ? getRangeDays(event.date, event.endDate)
-                : 1;
               const rangeLabel = isActiveRange ? "期間中" : "期間予定";
               const isSelected = selectedIds.has(event.id);
+              const hasMemo = hasEventMemo(event);
+
+              const showMemoBtn =
+                showMemoActions &&
+                ((!hasMemo && onMemo) || (hasMemo && onDeleteMemo));
 
               return (
                 <div
                   key={event.id}
-                  className={`relative flex gap-3 rounded-xl border p-3 ${
-                    selectMode || !showCardDelete ? "pb-3" : "pb-9"
+                  className={`relative flex gap-3 rounded-xl border p-3 pr-10 ${
+                    showMemoBtn ? "pb-10" : ""
                   } ${
                     range
                       ? rangeStyle!.card
                       : `${NORMAL_CARD_STYLE} ${isTodaySingle ? "ring-2 ring-main/50" : ""}`
                   }`}
                 >
+                  {showOverflowMenu && (
+                    <EventCardOverflowMenu
+                      isOpen={openMenuEventId === event.id}
+                      onToggle={() =>
+                        setOpenMenuEventId((prev) =>
+                          prev === event.id ? null : event.id
+                        )
+                      }
+                      onEdit={() => {
+                        setOpenMenuEventId(null);
+                        onEdit?.(event.id);
+                      }}
+                      onDelete={() => {
+                        setOpenMenuEventId(null);
+                        onDelete?.(event.id, range);
+                      }}
+                    />
+                  )}
+
                   {selectMode && onToggleSelect && (
                     <label className="flex shrink-0 items-start pt-1">
                       <input
@@ -100,31 +150,36 @@ export function CalendarList({
                   )}
 
                   {range ? (
-                    <>
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className={`text-sm font-medium ${rangeStyle!.accent}`}
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`text-sm font-medium ${rangeStyle!.accent}`}
+                      >
+                        {formatDateRange(event)}
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-foreground">
+                        {event.title}
+                      </p>
+                      {hasMemo && (
+                        <EventDescriptionBox
+                          text={event.description!}
+                          onClick={
+                            onMemo ? () => onMemo(event.id) : undefined
+                          }
+                        />
+                      )}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${rangeStyle!.label}`}
                         >
-                          {formatDateRange(event)}
-                        </p>
-                        <p className="mt-1 text-lg font-semibold text-foreground">
-                          {event.title}
-                        </p>
-                        <p className="mt-1 text-sm text-muted">{days}日間</p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <span
-                            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${rangeStyle!.label}`}
-                          >
-                            {rangeLabel}
-                          </span>
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] ${TYPE_COLORS[event.type]}`}
-                          >
-                            {TYPE_LABELS[event.type]}
-                          </span>
-                        </div>
+                          {rangeLabel}
+                        </span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] ${TYPE_COLORS[event.type]}`}
+                        >
+                          {TYPE_LABELS[event.type]}
+                        </span>
                       </div>
-                    </>
+                    </div>
                   ) : (
                     <>
                       <div
@@ -151,6 +206,14 @@ export function CalendarList({
                         <p className="text-xs text-muted">
                           {formatTime(event)} · {formatDateJa(event.date)}
                         </p>
+                        {hasMemo && (
+                          <EventDescriptionBox
+                            text={event.description!}
+                            onClick={
+                              onMemo ? () => onMemo(event.id) : undefined
+                            }
+                          />
+                        )}
                         <span
                           className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] ${TYPE_COLORS[event.type]}`}
                         >
@@ -160,14 +223,27 @@ export function CalendarList({
                     </>
                   )}
 
-                  {showCardDelete && !selectMode && onDelete && (
-                    <button
-                      type="button"
-                      onClick={() => onDelete(event.id, range)}
-                      className="absolute bottom-2 right-2 min-h-[32px] min-w-[52px] rounded-lg border border-red-500/25 bg-red-500/10 px-2.5 py-1 text-[11px] text-red-300/90 transition-colors hover:bg-red-500/15 active:scale-[0.98]"
-                    >
-                      削除
-                    </button>
+                  {showMemoBtn && (
+                    <div className="absolute bottom-2 right-2 z-10">
+                      {!hasMemo && onMemo && (
+                        <button
+                          type="button"
+                          onClick={() => onMemo(event.id)}
+                          className={memoCreateClass}
+                        >
+                          メモ作成
+                        </button>
+                      )}
+                      {hasMemo && onDeleteMemo && (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteMemo(event.id)}
+                          className={memoDeleteClass}
+                        >
+                          メモ削除
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               );

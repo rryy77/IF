@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AddActionMenu } from "@/components/AddActionMenu";
 
 type HomeHeaderProps = {
   onEditClick?: () => void;
@@ -25,13 +25,7 @@ export function HomeHeader({ onEditClick, isEditActive }: HomeHeaderProps) {
             編集
           </button>
         )}
-        <Link
-          href="/add"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-main text-2xl font-light leading-none text-background shadow-lg shadow-main/30 transition-transform active:scale-95"
-          aria-label="PDFを追加"
-        >
-          ＋
-        </Link>
+        <AddActionMenu />
       </div>
     </header>
   );

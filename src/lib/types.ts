@@ -10,6 +10,7 @@ export type EventItem = {
   source: "pdf" | "manual";
   confidence?: number;
   rawText?: string;
+  description?: string;
 };
 
 export type ExtractionGapWarning = {

@@ -14,6 +14,7 @@ export function rowToEvent(row: EventRow): EventItem {
     source: row.source as EventItem["source"],
     rawText: row.raw_text ?? undefined,
     confidence: row.confidence ?? undefined,
+    description: row.description ?? undefined,
   };
 }
 
@@ -31,5 +32,31 @@ export function eventToInsertRow(
     source: event.source ?? "pdf",
     raw_text: event.rawText ?? null,
     confidence: event.confidence ?? null,
+    description: event.description ?? null,
+  };
+}
+
+export function eventToUpdateRow(
+  event: EventItem
+): Pick<
+  EventRow,
+  | "title"
+  | "date"
+  | "end_date"
+  | "start_time"
+  | "end_time"
+  | "type"
+  | "description"
+  | "reminder_sent_at"
+> {
+  return {
+    title: event.title,
+    date: event.date,
+    end_date: event.endDate ?? null,
+    start_time: event.startTime ?? null,
+    end_time: event.endTime ?? null,
+    type: event.type,
+    description: event.description ?? null,
+    reminder_sent_at: null,
   };
 }
