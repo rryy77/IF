@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { GmailSettingsPanel } from "@/components/GmailSettingsPanel";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/Button";
 import {
@@ -12,7 +13,6 @@ import {
   IMPORTANCE_LABELS,
 } from "@/lib/sakura/noticeLabels";
 import type { NoticeItem } from "@/lib/sakura/types";
-import { GmailSettingsPanel } from "@/components/GmailSettingsPanel";
 import { getNotices, setNoticeRead } from "@/lib/noticesStorage";
 
 function formatNoticeDate(iso: string): string {
@@ -67,15 +67,23 @@ export default function NoticesPage() {
     <AppShell>
       <PageHeader title="通知" backHref="/" backLabel="ホーム" />
 
+      {/* Gmail連携 — 常に最上部に表示 */}
       <GmailSettingsPanel />
 
-      <div className="mb-4">
-        <Link href="/mail/import">
-          <Button type="button" variant="secondary">
-            さくら連絡網メールを貼り付け（v1）
-          </Button>
-        </Link>
-      </div>
+      <details className="mb-4 rounded-xl border border-[#334155] bg-card/50 px-3 py-2">
+        <summary className="cursor-pointer text-sm text-muted">
+          手動でメール本文を貼り付け（v1）
+        </summary>
+        <div className="mt-2 pb-2">
+          <Link href="/mail/import">
+            <Button type="button" variant="secondary">
+              さくら連絡網メールを貼り付け
+            </Button>
+          </Link>
+        </div>
+      </details>
+
+      <h2 className="mb-3 text-sm font-semibold text-muted">通知一覧</h2>
 
       {error && (
         <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
@@ -90,7 +98,7 @@ export default function NoticesPage() {
         <p className="text-center text-sm text-muted">読み込み中...</p>
       ) : notices.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-muted/30 p-8 text-center text-sm text-muted">
-          通知はまだありません。
+          通知はまだありません。Gmail連携後「今すぐ確認」を試してください。
         </p>
       ) : (
         <ul className="space-y-3">
@@ -104,7 +112,7 @@ export default function NoticesPage() {
               }`}
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <h2 className="font-semibold text-foreground">{notice.title}</h2>
+                <h3 className="font-semibold text-foreground">{notice.title}</h3>
                 {!notice.isRead && (
                   <span className="rounded-full bg-main/20 px-2 py-0.5 text-[10px] text-main">
                     未読

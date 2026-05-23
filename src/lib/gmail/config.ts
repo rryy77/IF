@@ -55,6 +55,28 @@ export function getSiteBaseUrl(): string {
   return url;
 }
 
+/** UI / 診断用：不足している環境変数一覧（throw しない） */
+export function getGmailEnvStatus(): {
+  oauthReady: boolean;
+  missingEnv: string[];
+} {
+  const missing: string[] = [];
+  if (!process.env.GOOGLE_CLIENT_ID?.trim()) missing.push("GOOGLE_CLIENT_ID");
+  if (!process.env.GOOGLE_CLIENT_SECRET?.trim()) {
+    missing.push("GOOGLE_CLIENT_SECRET");
+  }
+  if (!process.env.GOOGLE_REDIRECT_URI?.trim()) {
+    missing.push("GOOGLE_REDIRECT_URI");
+  }
+  if (
+    !process.env.NEXT_PUBLIC_SITE_URL?.trim() &&
+    !process.env.NEXT_PUBLIC_APP_URL?.trim()
+  ) {
+    missing.push("NEXT_PUBLIC_SITE_URL or NEXT_PUBLIC_APP_URL");
+  }
+  return { oauthReady: missing.length === 0, missingEnv: missing };
+}
+
 export function getGoogleOAuthConfig() {
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
